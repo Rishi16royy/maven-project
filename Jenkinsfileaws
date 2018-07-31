@@ -1,0 +1,47 @@
+pipeline{
+  agent any
+
+  parameters{
+    string(name: 'tomcat_dev', defaultValue: '13.127.122.204', description: 'Staging env')
+    string(name: 'tomcat_prod', defaultValue: '13.232.73.86', description: 'Prod env')
+    string(name: 'ssh_key', defaultValue: '/Rishi/Personal/aws\ key\ ec2/SSH/ec2_rishi.pem', description: 'ssh key for aws')
+  }
+
+  triggers {
+    pollscm('* * * * *')
+  }
+
+  tools{
+    maven 'localMaven'
+  }
+
+  stages{
+    stage('Build'){
+      steps{
+        sh 'mvn clean package'
+      }
+      post{
+        success{
+          echo "Now Archiving..."
+          archiveArtifacts '**/*.war'
+        }
+      }
+    }
+
+    stage('Deployments'){
+      parallel{
+        stage ('Deploy to Staging'){
+                    steps {
+                        sh "scp -i ${params.ssh_key} **/target/*.war ec2-user@${params.tomcat_dev}:/var/lib/tomcat8/webapps"
+                    }
+                }
+
+        stage ("Deploy to Production"){
+            steps {
+                sh "scp -i ${params.ssh_key} **/target/*.war ec2-user@${params.tomcat_prod}:/var/lib/tomcat8/webapps"
+            }
+        }
+      }
+    }
+  }
+}
